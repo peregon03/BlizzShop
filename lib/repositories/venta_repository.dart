@@ -17,6 +17,7 @@ class VentaRepository {
     final data = await _client
         .from('ventas')
         .select('*, venta_items(*)')
+        .eq('usuario_id', _userId)
         .gte('creado_en', inicio)
         .lte('creado_en', fin)
         .order('creado_en', ascending: false);
@@ -29,6 +30,8 @@ class VentaRepository {
     required double total,
     required double costoTotal,
     required List<Map<String, dynamic>> items,
+    String? medioPagoId,
+    String? medioPagoNombre,
   }) async {
     final ventaData = await _client
         .from('ventas')
@@ -36,6 +39,8 @@ class VentaRepository {
           'usuario_id': _userId,
           'total': total,
           'costo_total': costoTotal,
+          if (medioPagoId != null) 'medio_pago_id': medioPagoId,
+          if (medioPagoNombre != null) 'medio_pago_nombre': medioPagoNombre,
         })
         .select()
         .single();

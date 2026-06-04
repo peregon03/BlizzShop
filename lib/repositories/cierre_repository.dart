@@ -12,6 +12,7 @@ class CierreRepository {
     final data = await _client
         .from('cierres_dia')
         .select()
+        .eq('usuario_id', _userId)
         .order('creado_en', ascending: false)
         .limit(90);
     return (data as List).map((e) => CierreDia.fromJson(e)).toList();

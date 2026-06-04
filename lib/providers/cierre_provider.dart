@@ -75,6 +75,7 @@ class _StatsHoy {
   final double ticketPromedio;
   final Map<String, _CatStat> porCategoria;
   final List<(String, int, double)> topProductos; // (nombre, qty, total)
+  final Map<String, double> porMedioPago; // nombre -> total
 
   const _StatsHoy({
     required this.totalVentas,
@@ -84,6 +85,7 @@ class _StatsHoy {
     required this.ticketPromedio,
     required this.porCategoria,
     required this.topProductos,
+    required this.porMedioPago,
   });
 
   double get ganancia => totalVentas - costoTotal;
@@ -98,6 +100,7 @@ class _StatsHoy {
         ticketPromedio: 0,
         porCategoria: {},
         topProductos: [],
+        porMedioPago: {},
       );
     }
 
@@ -105,10 +108,16 @@ class _StatsHoy {
     int items = 0;
     final porProd = <String, (int, double)>{};
     final porCat = <String, _CatStat>{};
+    final porMedio = <String, double>{};
 
     for (final v in ventas) {
       total += v.total;
       costo += v.costoTotal;
+
+      // Medio de pago
+      final mediNombre = v.medioPagoNombre ?? 'Sin especificar';
+      porMedio[mediNombre] = (porMedio[mediNombre] ?? 0) + v.total;
+
       for (final i in v.items) {
         items += i.cantidad;
         final prev = porProd[i.nombreProducto];
@@ -147,6 +156,7 @@ class _StatsHoy {
       ticketPromedio: total / ventas.length,
       porCategoria: porCat,
       topProductos: top.take(5).toList(),
+      porMedioPago: porMedio,
     );
   }
 }

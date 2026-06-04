@@ -64,6 +64,12 @@ class AjustesScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/ajustes/presentaciones'),
           ),
+          ListTile(
+            leading: const Icon(Icons.payment_outlined),
+            title: const Text('Medios de pago'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/ajustes/medios-pago'),
+          ),
           const Divider(),
 
           // Datos

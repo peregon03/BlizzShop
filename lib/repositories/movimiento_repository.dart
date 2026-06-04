@@ -15,6 +15,7 @@ class MovimientoRepository {
     final data = await _client
         .from('movimientos_inventario')
         .select()
+        .eq('usuario_id', _userId)
         .eq('producto_id', productoId)
         .order('creado_en', ascending: false)
         .limit(limit);
@@ -25,6 +26,7 @@ class MovimientoRepository {
     final data = await _client
         .from('movimientos_inventario')
         .select()
+        .eq('usuario_id', _userId)
         .order('creado_en', ascending: false)
         .limit(limit);
     return (data as List).map((e) => MovimientoInventario.fromJson(e)).toList();

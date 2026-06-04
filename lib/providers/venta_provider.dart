@@ -6,9 +6,14 @@ import '../models/movimiento_inventario.dart';
 import '../models/producto.dart';
 import 'supabase_provider.dart';
 import 'producto_provider.dart';
+import 'medio_pago_provider.dart';
 
 // ── Carrito: Map<productoId, cantidad> ─────────────────────
 final carritoProvider = StateProvider<Map<String, int>>((ref) => {});
+
+// ── Medio de pago seleccionado para la próxima venta ───────
+// Stores the MedioPago id. null = ninguno seleccionado todavía.
+final medioPagoSeleccionadoProvider = StateProvider<String?>((ref) => null);
 
 // ── Computed: items del carrito con su Producto ─────────────
 final carritoItemsProvider = Provider<List<(Producto, int)>>((ref) {
@@ -81,11 +86,21 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
       });
     }
 
+    // Medio de pago seleccionado
+    final medioId = ref.read(medioPagoSeleccionadoProvider);
+    final medios = ref.read(mediosPagoProvider).valueOrNull ?? [];
+    final medio = medios.cast<dynamic>().firstWhere(
+          (m) => m.id == medioId,
+          orElse: () => medios.isNotEmpty ? medios.first : null,
+        );
+
     // Insertar venta en BD
     await ref.read(ventaRepositoryProvider).insertar(
           total: total,
           costoTotal: costoTotal,
           items: itemsPayload,
+          medioPagoId: medio?.id as String?,
+          medioPagoNombre: medio?.nombre as String?,
         );
 
     // Registrar movimientos de salida y actualizar stock

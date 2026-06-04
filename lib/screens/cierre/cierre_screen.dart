@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/base_dia.dart';
 import '../../models/cierre_dia.dart';
 import '../../models/venta.dart';
+import '../../providers/base_dia_provider.dart';
 import '../../providers/venta_provider.dart';
 import '../../providers/cierre_provider.dart';
 
@@ -81,6 +83,7 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
   Widget build(BuildContext context) {
     final stats = ref.watch(statsHoyProvider);
     final ventasHoy = ref.watch(ventasHoyProvider).valueOrNull ?? [];
+    final baseDia = ref.watch(baseDiaProvider).valueOrNull;
     final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$');
     final hoy = DateFormat('EEEE d \'de\' MMMM').format(DateTime.now());
     final catEntries = stats.porCategoria.values.toList()
@@ -110,8 +113,13 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
               style: const TextStyle(fontSize: 13, color: Colors.white38)),
           const SizedBox(height: 14),
 
+          // Base del día
+          _BaseDiaCard(baseDia: baseDia, fmt: fmt,
+              onEditar: () => _mostrarFormBase(context, baseDia)),
+          const SizedBox(height: 14),
+
           // Stats
-          _StatsGrid(stats: stats, fmt: fmt),
+          _StatsGrid(stats: stats, fmt: fmt, baseDia: baseDia),
           const SizedBox(height: 14),
 
           // Desglose por categoría
@@ -145,6 +153,32 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
                   ),
           ),
           const SizedBox(height: 12),
+
+          // Desglose por medio de pago
+          if (stats.porMedioPago.isNotEmpty) ...[
+            _CierreCard(
+              titulo: 'Por medio de pago',
+              child: Column(
+                children: stats.porMedioPago.entries
+                    .map((e) => _RowDoble(
+                          leading: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.payment_outlined,
+                                  size: 14, color: Colors.white38),
+                              const SizedBox(width: 6),
+                              Text(e.key,
+                                  style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                          valor: fmt.format(e.value),
+                          sub: '${((e.value / stats.totalVentas) * 100).toStringAsFixed(0)}%',
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Top productos
           _CierreCard(
@@ -274,7 +308,31 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
     );
   }
 
+  Future<void> _mostrarFormBase(BuildContext context, BaseDia? actual) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom),
+        child: _BaseFormSheet(
+          montoInicial: actual != null ? actual.monto.toStringAsFixed(0) : '',
+          notaInicial: actual?.nota ?? '',
+          esEdicion: actual != null,
+          onGuardar: (monto, nota) async {
+            await ref.read(baseDiaProvider.notifier).guardar(
+                  monto: monto,
+                  nota: nota,
+                );
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmarEliminarVenta(BuildContext context, Venta venta) async {
+    final messenger = ScaffoldMessenger.of(context);
     final hora = venta.creadoEn != null
         ? DateFormat('HH:mm').format(venta.creadoEn!)
         : '';
@@ -301,13 +359,13 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
     try {
       await ref.read(ventasHoyProvider.notifier).deleteVenta(venta.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Venta eliminada y stock restaurado')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
               content: Text('Error: $e'),
               backgroundColor: Colors.red.shade700),
@@ -382,6 +440,7 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
 
   Future<void> _eliminarCierreConPassword(
       BuildContext context, CierreDia cierre) async {
+    final messenger = ScaffoldMessenger.of(context);
     // El dialog es un StatefulWidget propio → el controller tiene su ciclo
     // de vida correcto y no se dispone prematuramente.
     final password = await showDialog<String>(
@@ -399,13 +458,13 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
       );
       await ref.read(cierresProvider.notifier).deleteCierre(cierre.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Cierre eliminado')),
         );
       }
     } on AuthException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Contraseña incorrecta'),
             backgroundColor: Colors.red,
@@ -456,10 +515,12 @@ class _CierreScreenState extends ConsumerState<CierreScreen> {
 class _StatsGrid extends StatelessWidget {
   final dynamic stats;
   final NumberFormat fmt;
-  const _StatsGrid({required this.stats, required this.fmt});
+  final dynamic baseDia; // BaseDia?
+  const _StatsGrid({required this.stats, required this.fmt, this.baseDia});
 
   @override
   Widget build(BuildContext context) {
+    final efectivoEsperado = (baseDia?.monto ?? 0.0) + stats.totalVentas;
     return Column(
       children: [
         Row(children: [
@@ -487,6 +548,15 @@ class _StatsGrid extends StatelessWidget {
               valor: fmt.format(stats.ganancia),
               color: Colors.green.shade400),
         ]),
+        if (baseDia != null) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            _StatCard(
+                label: 'Efectivo esperado en caja',
+                valor: fmt.format(efectivoEsperado),
+                color: Colors.amber.shade300),
+          ]),
+        ],
       ],
     );
   }
@@ -642,6 +712,205 @@ class _CierreHistorialTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+// ── Base del día ──────────────────────────────────────────
+
+class _BaseDiaCard extends StatelessWidget {
+  final dynamic baseDia; // BaseDia?
+  final NumberFormat fmt;
+  final VoidCallback onEditar;
+  const _BaseDiaCard(
+      {required this.baseDia, required this.fmt, required this.onEditar});
+
+  @override
+  Widget build(BuildContext context) {
+    if (baseDia == null) {
+      return InkWell(
+        onTap: onEditar,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.4),
+                style: BorderStyle.solid),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  color: Theme.of(context).colorScheme.primary, size: 20),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Registrar base inicial del día',
+                    style: TextStyle(fontSize: 13)),
+              ),
+              Icon(Icons.add_circle_outline,
+                  color: Theme.of(context).colorScheme.primary, size: 20),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        border: Border.all(color: const Color(0xFF2E2E2E)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.account_balance_wallet_outlined,
+              color: Colors.amber.shade300, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Base inicial del día',
+                    style: TextStyle(fontSize: 11, color: Colors.white38)),
+                Text(fmt.format(baseDia.monto),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                if (baseDia.nota != null && baseDia.nota!.isNotEmpty)
+                  Text(baseDia.nota!,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white38,
+                          fontStyle: FontStyle.italic)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            onPressed: onEditar,
+            tooltip: 'Editar base',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BaseFormSheet extends StatefulWidget {
+  final String montoInicial;
+  final String notaInicial;
+  final bool esEdicion;
+  final Future<void> Function(double monto, String nota) onGuardar;
+
+  const _BaseFormSheet({
+    required this.montoInicial,
+    required this.notaInicial,
+    required this.esEdicion,
+    required this.onGuardar,
+  });
+
+  @override
+  State<_BaseFormSheet> createState() => _BaseFormSheetState();
+}
+
+class _BaseFormSheetState extends State<_BaseFormSheet> {
+  late final TextEditingController _montoCtrl;
+  late final TextEditingController _notaCtrl;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _montoCtrl = TextEditingController(text: widget.montoInicial);
+    _notaCtrl = TextEditingController(text: widget.notaInicial);
+  }
+
+  @override
+  void dispose() {
+    _montoCtrl.dispose();
+    _notaCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+                color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+          child: Text(
+            widget.esEdicion ? 'Editar base del día' : 'Base inicial del día',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: TextField(
+            controller: _montoCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Monto de apertura *',
+              hintText: '0',
+              prefixText: '\$ ',
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: TextField(
+            controller: _notaCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Nota (opcional)',
+              hintText: 'Ej: Incluye billetes sueltos',
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          child: FilledButton(
+            onPressed: _guardando
+                ? null
+                : () async {
+                    setState(() => _guardando = true);
+                    try {
+                      final monto = double.tryParse(
+                              _montoCtrl.text.replaceAll(',', '.')) ??
+                          0;
+                      await widget.onGuardar(monto, _notaCtrl.text.trim());
+                    } finally {
+                      if (mounted) setState(() => _guardando = false);
+                    }
+                  },
+            child: _guardando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Guardar'),
+          ),
+        ),
+      ],
     );
   }
 }

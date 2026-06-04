@@ -49,6 +49,8 @@ class Venta {
   final String? nota;
   final DateTime? creadoEn;
   final List<VentaItem> items;
+  final String? medioPagoId;
+  final String? medioPagoNombre;
 
   const Venta({
     required this.id,
@@ -58,6 +60,8 @@ class Venta {
     this.nota,
     this.creadoEn,
     this.items = const [],
+    this.medioPagoId,
+    this.medioPagoNombre,
   });
 
   double get ganancia => total - costoTotal;
@@ -75,5 +79,7 @@ class Venta {
                 ?.map((e) => VentaItem.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        medioPagoId: json['medio_pago_id'] as String?,
+        medioPagoNombre: json['medio_pago_nombre'] as String?,
       );
 }

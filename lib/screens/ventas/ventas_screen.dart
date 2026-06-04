@@ -10,6 +10,7 @@ import '../../providers/producto_provider.dart';
 import '../../providers/categoria_provider.dart';
 import '../../providers/venta_provider.dart';
 import '../../providers/supabase_provider.dart';
+import '../../providers/medio_pago_provider.dart';
 import '../../core/theme.dart';
 
 // Tab activo
@@ -293,6 +294,8 @@ class _TabVenderState extends ConsumerState<_TabVender> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          const _MedioPagoSelector(),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -915,6 +918,84 @@ class _EntradaModalState extends ConsumerState<_EntradaModal> {
       controller: ctrl,
       keyboardType: type,
       decoration: InputDecoration(hintText: hint),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Selector de medio de pago
+// ─────────────────────────────────────────────────────────
+
+class _MedioPagoSelector extends ConsumerWidget {
+  const _MedioPagoSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mediosAsync = ref.watch(mediosPagoProvider);
+    final medios = mediosAsync.valueOrNull ?? [];
+    final seleccionadoId = ref.watch(medioPagoSeleccionadoProvider);
+
+    // Auto-seleccionar el primero si no hay ninguno
+    final efectivoId = medios.isNotEmpty ? medios.first.id : null;
+    final idActivo = seleccionadoId ?? efectivoId;
+
+    if (medios.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Método de pago',
+            style: TextStyle(
+                fontSize: 12,
+                color: Colors.white54,
+                fontWeight: FontWeight.w500)),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: medios
+                .map((m) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => ref
+                            .read(medioPagoSeleccionadoProvider.notifier)
+                            .state = m.id,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: idActivo == m.id
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.2)
+                                : const Color(0xFF2A2A2A),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: idActivo == m.id
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(m.nombre,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: idActivo == m.id
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: idActivo == m.id
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.white70,
+                              )),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+      ],
     );
   }
 }

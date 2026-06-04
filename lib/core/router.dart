@@ -16,6 +16,7 @@ import '../screens/ajustes/ajustes_screen.dart';
 import '../screens/ajustes/categorias_screen.dart';
 import '../screens/ajustes/presentaciones_screen.dart';
 import '../screens/ajustes/perfil_screen.dart';
+import '../screens/ajustes/medios_pago_screen.dart';
 import '../screens/cierre/cierre_screen.dart';
 
 // ── ChangeNotifier que reacciona a cambios de auth ───────
@@ -83,6 +84,10 @@ GoRouter get router {
           GoRoute(
             path: 'presentaciones',
             builder: (_, __) => const PresentacionesScreen(),
+          ),
+          GoRoute(
+            path: 'medios-pago',
+            builder: (_, __) => const MediosPagoScreen(),
           ),
         ],
       ),

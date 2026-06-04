@@ -12,6 +12,7 @@ class PresentacionRepository {
     final data = await _client
         .from('presentaciones')
         .select()
+        .eq('usuario_id', _userId)
         .order('descripcion');
     return (data as List).map((e) => Presentacion.fromJson(e)).toList();
   }
@@ -27,10 +28,15 @@ class PresentacionRepository {
     await _client
         .from('presentaciones')
         .update(p.toJson())
-        .eq('id', p.id);
+        .eq('id', p.id)
+        .eq('usuario_id', _userId);
   }
 
   Future<void> delete(String id) async {
-    await _client.from('presentaciones').delete().eq('id', id);
+    await _client
+        .from('presentaciones')
+        .delete()
+        .eq('id', id)
+        .eq('usuario_id', _userId);
   }
 }

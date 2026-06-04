@@ -12,6 +12,7 @@ class CategoriaRepository {
     final data = await _client
         .from('categorias')
         .select()
+        .eq('usuario_id', _userId)
         .order('nombre');
     return (data as List).map((e) => Categoria.fromJson(e)).toList();
   }
@@ -27,10 +28,15 @@ class CategoriaRepository {
     await _client
         .from('categorias')
         .update(categoria.toJson())
-        .eq('id', categoria.id);
+        .eq('id', categoria.id)
+        .eq('usuario_id', _userId);
   }
 
   Future<void> delete(String id) async {
-    await _client.from('categorias').delete().eq('id', id);
+    await _client
+        .from('categorias')
+        .delete()
+        .eq('id', id)
+        .eq('usuario_id', _userId);
   }
 }
