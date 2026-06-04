@@ -6,6 +6,13 @@ class HomeScreen extends StatelessWidget {
 
   const HomeScreen({super.key, required this.shell});
 
+  static const _destinations = [
+    (Icons.point_of_sale_outlined, Icons.point_of_sale, 'Ventas'),
+    (Icons.folder_outlined, Icons.folder, 'Categorías'),
+    (Icons.inventory_2_outlined, Icons.inventory_2, 'Productos'),
+    (Icons.bar_chart_outlined, Icons.bar_chart, 'Cierre'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final ancho = MediaQuery.sizeOf(context).width;
@@ -20,23 +27,13 @@ class HomeScreen extends StatelessWidget {
               onDestinationSelected: shell.goBranch,
               labelType: NavigationRailLabelType.all,
               backgroundColor: const Color(0xFF1E1E1E),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  selectedIcon: Icon(Icons.inventory_2),
-                  label: Text('Inventario'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.add_circle_outline),
-                  selectedIcon: Icon(Icons.add_circle),
-                  label: Text('Registrar'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: Text('Ajustes'),
-                ),
-              ],
+              destinations: _destinations
+                  .map((d) => NavigationRailDestination(
+                        icon: Icon(d.$1),
+                        selectedIcon: Icon(d.$2),
+                        label: Text(d.$3),
+                      ))
+                  .toList(),
             ),
             const VerticalDivider(thickness: 1, width: 1),
             Expanded(child: shell),
@@ -50,23 +47,13 @@ class HomeScreen extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: shell.goBranch,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Inventario',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Registrar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Ajustes',
-          ),
-        ],
+        destinations: _destinations
+            .map((d) => NavigationDestination(
+                  icon: Icon(d.$1),
+                  selectedIcon: Icon(d.$2),
+                  label: d.$3,
+                ))
+            .toList(),
       ),
     );
   }

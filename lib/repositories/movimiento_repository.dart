@@ -6,6 +6,8 @@ class MovimientoRepository {
 
   MovimientoRepository(this._client);
 
+  String get _userId => _client.auth.currentUser!.id;
+
   Future<List<MovimientoInventario>> fetchByProducto(
     String productoId, {
     int limit = 10,
@@ -16,12 +18,22 @@ class MovimientoRepository {
         .eq('producto_id', productoId)
         .order('creado_en', ascending: false)
         .limit(limit);
-    return (data as List)
-        .map((e) => MovimientoInventario.fromJson(e))
-        .toList();
+    return (data as List).map((e) => MovimientoInventario.fromJson(e)).toList();
+  }
+
+  Future<List<MovimientoInventario>> fetchRecientes({int limit = 50}) async {
+    final data = await _client
+        .from('movimientos_inventario')
+        .select()
+        .order('creado_en', ascending: false)
+        .limit(limit);
+    return (data as List).map((e) => MovimientoInventario.fromJson(e)).toList();
   }
 
   Future<void> insert(MovimientoInventario movimiento) async {
-    await _client.from('movimientos_inventario').insert(movimiento.toJson());
+    await _client.from('movimientos_inventario').insert({
+      ...movimiento.toJson(),
+      'usuario_id': _userId,
+    });
   }
 }

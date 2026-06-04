@@ -6,7 +6,6 @@ class AppTheme {
 
   static const _burgundy = Color(0xFF8B1A2F);
   static const _burgundyLight = Color(0xFFB5263F);
-  static const _burgundyDark = Color(0xFF5C0E1E);
 
   static ThemeData get dark {
     final colorScheme = ColorScheme.fromSeed(
@@ -23,18 +22,18 @@ class AppTheme {
       colorScheme: colorScheme,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF121212),
-      appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFF1E1E1E),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1E1E1E),
         foregroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           color: Colors.white,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: const Color(0xFF1E1E1E),
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -76,7 +75,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: const Color(0xFF1E1E1E),
-        indicatorColor: _burgundy.withOpacity(0.3),
+        indicatorColor: _burgundy.withValues(alpha: 0.3),
         surfaceTintColor: Colors.transparent,
       ),
       bottomSheetTheme: const BottomSheetThemeData(

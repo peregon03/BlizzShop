@@ -146,7 +146,7 @@ class _AlertaBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: Colors.amber.shade800.withOpacity(0.2),
+      color: Colors.amber.shade800.withValues(alpha: 0.2),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [

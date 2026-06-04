@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/categoria.dart';
 import 'supabase_provider.dart';
 
@@ -10,6 +11,8 @@ final categoriasProvider =
 class CategoriasNotifier extends AsyncNotifier<List<Categoria>> {
   @override
   Future<List<Categoria>> build() async {
+    ref.watch(authStateChangesProvider);
+    if (Supabase.instance.client.auth.currentUser == null) return [];
     return ref.watch(categoriaRepositoryProvider).fetchAll();
   }
 
@@ -25,7 +28,7 @@ class CategoriasNotifier extends AsyncNotifier<List<Categoria>> {
     await reload();
   }
 
-  Future<void> update(Categoria categoria) async {
+  Future<void> guardar(Categoria categoria) async {
     await ref.read(categoriaRepositoryProvider).update(categoria);
     await reload();
   }

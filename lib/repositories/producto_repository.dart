@@ -6,6 +6,8 @@ class ProductoRepository {
 
   ProductoRepository(this._client);
 
+  String get _userId => _client.auth.currentUser!.id;
+
   Future<List<Producto>> fetchAll() async {
     final data = await _client
         .from('productos')
@@ -16,7 +18,10 @@ class ProductoRepository {
   }
 
   Future<void> insert(Producto producto) async {
-    await _client.from('productos').insert(producto.toInsertJson());
+    await _client.from('productos').insert({
+      ...producto.toInsertJson(),
+      'usuario_id': _userId,
+    });
   }
 
   Future<void> update(Producto producto) async {

@@ -1,38 +1,26 @@
-enum TipoMovimiento { entrada, salida, ajuste }
+enum TipoMovimiento { entrada, salida, ajuste, venta }
 
 extension TipoMovimientoX on TipoMovimiento {
-  String get value {
-    switch (this) {
-      case TipoMovimiento.entrada:
-        return 'entrada';
-      case TipoMovimiento.salida:
-        return 'salida';
-      case TipoMovimiento.ajuste:
-        return 'ajuste';
-    }
-  }
+  String get value => switch (this) {
+        TipoMovimiento.entrada => 'entrada',
+        TipoMovimiento.salida => 'salida',
+        TipoMovimiento.ajuste => 'ajuste',
+        TipoMovimiento.venta => 'venta',
+      };
 
-  String get etiqueta {
-    switch (this) {
-      case TipoMovimiento.entrada:
-        return 'Entrada';
-      case TipoMovimiento.salida:
-        return 'Salida';
-      case TipoMovimiento.ajuste:
-        return 'Ajuste';
-    }
-  }
+  String get etiqueta => switch (this) {
+        TipoMovimiento.entrada => 'Entrada',
+        TipoMovimiento.salida => 'Salida',
+        TipoMovimiento.ajuste => 'Ajuste',
+        TipoMovimiento.venta => 'Venta',
+      };
 
-  static TipoMovimiento fromString(String s) {
-    switch (s) {
-      case 'entrada':
-        return TipoMovimiento.entrada;
-      case 'salida':
-        return TipoMovimiento.salida;
-      default:
-        return TipoMovimiento.ajuste;
-    }
-  }
+  static TipoMovimiento fromString(String s) => switch (s) {
+        'entrada' => TipoMovimiento.entrada,
+        'salida' => TipoMovimiento.salida,
+        'venta' => TipoMovimiento.venta,
+        _ => TipoMovimiento.ajuste,
+      };
 }
 
 class MovimientoInventario {
@@ -40,6 +28,8 @@ class MovimientoInventario {
   final String productoId;
   final TipoMovimiento tipo;
   final int cantidad;
+  final double valor;
+  final String? proveedor;
   final String? nota;
   final DateTime? creadoEn;
 
@@ -48,6 +38,8 @@ class MovimientoInventario {
     required this.productoId,
     required this.tipo,
     required this.cantidad,
+    this.valor = 0,
+    this.proveedor,
     this.nota,
     this.creadoEn,
   });
@@ -58,6 +50,8 @@ class MovimientoInventario {
       productoId: json['producto_id'] as String,
       tipo: TipoMovimientoX.fromString(json['tipo'] as String),
       cantidad: json['cantidad'] as int,
+      valor: (json['valor'] as num?)?.toDouble() ?? 0,
+      proveedor: json['proveedor'] as String?,
       nota: json['nota'] as String?,
       creadoEn: json['creado_en'] != null
           ? DateTime.parse(json['creado_en'] as String)
@@ -70,6 +64,8 @@ class MovimientoInventario {
         'producto_id': productoId,
         'tipo': tipo.value,
         'cantidad': cantidad,
+        'valor': valor,
+        if (proveedor != null) 'proveedor': proveedor,
         if (nota != null) 'nota': nota,
       };
 }

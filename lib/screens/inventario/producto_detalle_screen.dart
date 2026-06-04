@@ -104,7 +104,7 @@ class ProductoDetalleScreen extends ConsumerWidget {
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: _stockColor(producto.estadoStock)
-                            .withOpacity(0.15),
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -193,7 +193,7 @@ class ProductoDetalleScreen extends ConsumerWidget {
         icon: Icon(icono, size: 16, color: color),
         label: Text(etiqueta, style: TextStyle(color: color, fontSize: 12)),
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: color.withOpacity(0.5)),
+          side: BorderSide(color: color.withValues(alpha: 0.5)),
           padding: const EdgeInsets.symmetric(vertical: 10),
         ),
       ),
@@ -234,6 +234,7 @@ class ProductoDetalleScreen extends ConsumerWidget {
       TipoMovimiento.entrada => (Colors.green, Icons.arrow_downward),
       TipoMovimiento.salida => (Colors.red, Icons.arrow_upward),
       TipoMovimiento.ajuste => (Colors.amber, Icons.tune),
+      TipoMovimiento.venta => (Colors.purple, Icons.point_of_sale),
     };
 
     final signo = mov.tipo == TipoMovimiento.salida ? '-' : '+';

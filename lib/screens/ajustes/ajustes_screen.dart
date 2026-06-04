@@ -3,18 +3,53 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
-import '../../core/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/producto_provider.dart';
+import '../../providers/perfil_provider.dart';
 
 class AjustesScreen extends ConsumerWidget {
   const AjustesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final perfil = ref.watch(perfilProvider).valueOrNull;
+    final email = Supabase.instance.client.auth.currentUser?.email ?? '';
+    final nombreMostrar = perfil?.nombre.isNotEmpty == true
+        ? perfil!.nombre
+        : email;
+    final negocio = perfil?.nombreBar.isNotEmpty == true
+        ? perfil!.nombreBar
+        : 'Sin nombre';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
         children: [
+          // Perfil
+          const _SectionHeader('Cuenta'),
+          ListTile(
+            leading: CircleAvatar(
+              radius: 20,
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              child: Text(
+                nombreMostrar.isNotEmpty
+                    ? nombreMostrar[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+            title: Text(negocio),
+            subtitle: Text(email,
+                style:
+                    const TextStyle(color: Colors.white38, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/ajustes/perfil'),
+          ),
+          const Divider(),
+
           // Gestionar
           const _SectionHeader('Gestionar'),
           ListTile(
@@ -31,27 +66,7 @@ class AjustesScreen extends ConsumerWidget {
           ),
           const Divider(),
 
-          // Supabase
-          const _SectionHeader('Supabase'),
-          ListTile(
-            leading: const Icon(Icons.link),
-            title: const Text('URL del proyecto'),
-            subtitle: Text(
-              SupabaseConfig.projectUrl,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.key_outlined),
-            title: const Text('Anon key'),
-            subtitle: Text(
-              '${SupabaseConfig.anonKey.substring(0, 20)}…',
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-            ),
-          ),
-          const Divider(),
-
-          // Exportar
+          // Datos
           const _SectionHeader('Datos'),
           ListTile(
             leading: const Icon(Icons.upload_outlined),

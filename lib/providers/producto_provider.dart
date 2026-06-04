@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/producto.dart';
 import '../models/movimiento_inventario.dart';
 import 'supabase_provider.dart';
@@ -15,6 +16,8 @@ final productosProvider =
 class ProductosNotifier extends AsyncNotifier<List<Producto>> {
   @override
   Future<List<Producto>> build() async {
+    ref.watch(authStateChangesProvider); // Reinicia al cambiar de usuario
+    if (Supabase.instance.client.auth.currentUser == null) return [];
     return ref.watch(productoRepositoryProvider).fetchAll();
   }
 
@@ -30,7 +33,7 @@ class ProductosNotifier extends AsyncNotifier<List<Producto>> {
     await reload();
   }
 
-  Future<void> update(Producto producto) async {
+  Future<void> guardar(Producto producto) async {
     await ref.read(productoRepositoryProvider).update(producto);
     await reload();
   }
@@ -47,6 +50,8 @@ class ProductosNotifier extends AsyncNotifier<List<Producto>> {
     required TipoMovimiento tipo,
     required int cantidad,
     String? nota,
+    String? proveedor,
+    double? valor,
   }) async {
     final nuevoStock = _calcularNuevoStock(
       stockActual: producto.stockActual,
@@ -59,6 +64,8 @@ class ProductosNotifier extends AsyncNotifier<List<Producto>> {
       productoId: producto.id,
       tipo: tipo,
       cantidad: cantidad,
+      valor: valor ?? 0,
+      proveedor: proveedor,
       nota: nota,
     );
 
@@ -79,6 +86,8 @@ class ProductosNotifier extends AsyncNotifier<List<Producto>> {
         return (stockActual - cantidad).clamp(0, double.maxFinite.toInt());
       case TipoMovimiento.ajuste:
         return cantidad;
+      case TipoMovimiento.venta:
+        return (stockActual - cantidad).clamp(0, double.maxFinite.toInt());
     }
   }
 

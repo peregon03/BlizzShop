@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/presentacion.dart';
 import 'supabase_provider.dart';
 
@@ -10,6 +11,8 @@ final presentacionesProvider =
 class PresentacionesNotifier extends AsyncNotifier<List<Presentacion>> {
   @override
   Future<List<Presentacion>> build() async {
+    ref.watch(authStateChangesProvider);
+    if (Supabase.instance.client.auth.currentUser == null) return [];
     return ref.watch(presentacionRepositoryProvider).fetchAll();
   }
 
@@ -25,7 +28,7 @@ class PresentacionesNotifier extends AsyncNotifier<List<Presentacion>> {
     await reload();
   }
 
-  Future<void> update(Presentacion p) async {
+  Future<void> guardar(Presentacion p) async {
     await ref.read(presentacionRepositoryProvider).update(p);
     await reload();
   }

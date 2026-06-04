@@ -6,6 +6,8 @@ class PresentacionRepository {
 
   PresentacionRepository(this._client);
 
+  String get _userId => _client.auth.currentUser!.id;
+
   Future<List<Presentacion>> fetchAll() async {
     final data = await _client
         .from('presentaciones')
@@ -15,7 +17,10 @@ class PresentacionRepository {
   }
 
   Future<void> insert(Presentacion p) async {
-    await _client.from('presentaciones').insert(p.toJson());
+    await _client.from('presentaciones').insert({
+      ...p.toJson(),
+      'usuario_id': _userId,
+    });
   }
 
   Future<void> update(Presentacion p) async {

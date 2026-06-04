@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(powershell -Command \"Get-Content 'D:\\\\Michael\\\\Personal\\\\Daker\\\\bar_inventario.html' -Raw\")",
+      "Bash(flutter analyze:*)"
     ]
   }
 }

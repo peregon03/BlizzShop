@@ -78,7 +78,7 @@ class _ProductoFormScreenState extends ConsumerState<ProductoFormScreen> {
       );
 
       if (_esEdicion) {
-        await ref.read(productosProvider.notifier).update(producto);
+        await ref.read(productosProvider.notifier).guardar(producto);
       } else {
         await ref.read(productosProvider.notifier).insert(producto);
       }
@@ -94,6 +94,8 @@ class _ProductoFormScreenState extends ConsumerState<ProductoFormScreen> {
         );
         if (context.canPop()) {
           context.pop();
+        } else {
+          context.go('/inventario');
         }
       }
     } catch (e) {
@@ -148,7 +150,7 @@ class _ProductoFormScreenState extends ConsumerState<ProductoFormScreen> {
             // Categoría
             _label('Categoría'),
             DropdownButtonFormField<String>(
-              value: _categoriaId,
+              initialValue: _categoriaId,
               hint: const Text('Sin categoría'),
               decoration: const InputDecoration(),
               items: [
@@ -164,7 +166,7 @@ class _ProductoFormScreenState extends ConsumerState<ProductoFormScreen> {
             // Presentación
             _label('Presentación'),
             DropdownButtonFormField<String>(
-              value: _presentacionId,
+              initialValue: _presentacionId,
               hint: const Text('Sin presentación'),
               decoration: const InputDecoration(),
               items: [

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import '../../models/producto.dart';
 import '../../models/movimiento_inventario.dart';
 import '../../providers/producto_provider.dart';
@@ -41,6 +40,8 @@ class _MovimientoFormScreenState extends ConsumerState<MovimientoFormScreen> {
         return (_producto.stockActual - _cantidad).clamp(0, 999999);
       case TipoMovimiento.ajuste:
         return _cantidad;
+      case TipoMovimiento.venta:
+        return (_producto.stockActual - _cantidad).clamp(0, 999999);
     }
   }
 

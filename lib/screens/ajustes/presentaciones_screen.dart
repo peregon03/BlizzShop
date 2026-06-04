@@ -63,7 +63,7 @@ class PresentacionesScreen extends ConsumerWidget {
           if (pres == null) {
             await ref.read(presentacionesProvider.notifier).insert(p);
           } else {
-            await ref.read(presentacionesProvider.notifier).update(p);
+            await ref.read(presentacionesProvider.notifier).guardar(p);
           }
         },
       ),
@@ -74,15 +74,15 @@ class PresentacionesScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, Presentacion p) async {
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar presentación'),
         content: Text('¿Eliminar "${p.descripcion}"?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar')),
           TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Eliminar',
                   style: TextStyle(color: Colors.red))),
         ],
