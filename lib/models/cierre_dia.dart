@@ -8,6 +8,7 @@ class CierreDia {
   final int itemsVendidos;
   final String? nota;
   final DateTime? creadoEn;
+  final String? jornadaId;
 
   const CierreDia({
     required this.id,
@@ -19,6 +20,7 @@ class CierreDia {
     required this.itemsVendidos,
     this.nota,
     this.creadoEn,
+    this.jornadaId,
   });
 
   double get ganancia => totalVentas - costoTotal;
@@ -35,6 +37,7 @@ class CierreDia {
         creadoEn: json['creado_en'] != null
             ? DateTime.parse(json['creado_en'] as String)
             : null,
+        jornadaId: json['jornada_id'] as String?,
       );
 
   Map<String, dynamic> toInsertJson() => {
@@ -44,5 +47,6 @@ class CierreDia {
         'transacciones': transacciones,
         'items_vendidos': itemsVendidos,
         if (nota != null && nota!.isNotEmpty) 'nota': nota,
+        if (jornadaId != null) 'jornada_id': jornadaId,
       };
 }

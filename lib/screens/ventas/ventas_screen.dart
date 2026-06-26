@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../providers/categoria_provider.dart';
 import '../../providers/venta_provider.dart';
 import '../../providers/supabase_provider.dart';
 import '../../providers/medio_pago_provider.dart';
+import '../../providers/jornada_provider.dart';
 import '../../core/theme.dart';
 
 // Tab activo
@@ -117,9 +119,11 @@ class _VentasScreenState extends ConsumerState<VentasScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
-                _StatChip(label: 'Ventas hoy', valor: fmt.format(totalHoy)),
-                const SizedBox(width: 12),
+                _StatChip(label: 'Ventas jornada', valor: fmt.format(totalHoy)),
+                const SizedBox(width: 8),
                 _StatChip(label: 'Ítems vendidos', valor: '$itemsHoy'),
+                const SizedBox(width: 8),
+                const _JornadaChip(),
               ],
             ),
           ),
@@ -996,6 +1000,101 @@ class _MedioPagoSelector extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Indicador de jornada activa
+// ─────────────────────────────────────────────────────────
+
+class _JornadaChip extends ConsumerStatefulWidget {
+  const _JornadaChip();
+
+  @override
+  ConsumerState<_JornadaChip> createState() => _JornadaChipState();
+}
+
+class _JornadaChipState extends ConsumerState<_JornadaChip> {
+  late final Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Actualiza cada minuto para que el tiempo transcurrido sea preciso
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _duracion(DateTime apertura) {
+    final diff = DateTime.now().difference(apertura);
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final jornadaAsync = ref.watch(jornadaActivaProvider);
+
+    return jornadaAsync.when(
+      loading: () => const _StatChip(label: 'Jornada', valor: '...'),
+      error: (_, __) => const _StatChip(label: 'Jornada', valor: 'Error'),
+      data: (jornada) {
+        if (jornada == null) {
+          return const _StatChip(label: 'Jornada', valor: '—');
+        }
+        final apertura = jornada.fechaApertura.toLocal();
+        final horaApertura = DateFormat('HH:mm').format(apertura);
+        return Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _duracion(apertura),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Desde $horaApertura',
+                  style: const TextStyle(fontSize: 11, color: Colors.white38),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

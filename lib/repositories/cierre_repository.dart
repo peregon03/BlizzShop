@@ -19,10 +19,19 @@ class CierreRepository {
   }
 
   Future<void> insertar(CierreDia cierre) async {
-    await _client.from('cierres_dia').insert({
+    final payload = {
       ...cierre.toInsertJson(),
       'usuario_id': _userId,
-    });
+    };
+
+    try {
+      await _client.from('cierres_dia').insert(payload);
+    } on PostgrestException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (e.code != '42703' && !msg.contains('jornada_id')) rethrow;
+      payload.remove('jornada_id');
+      await _client.from('cierres_dia').insert(payload);
+    }
   }
 
   Future<void> deleteCierre(String id) async {

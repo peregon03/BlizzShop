@@ -51,6 +51,7 @@ class Venta {
   final List<VentaItem> items;
   final String? medioPagoId;
   final String? medioPagoNombre;
+  final String? jornadaId;
 
   const Venta({
     required this.id,
@@ -62,6 +63,7 @@ class Venta {
     this.items = const [],
     this.medioPagoId,
     this.medioPagoNombre,
+    this.jornadaId,
   });
 
   double get ganancia => total - costoTotal;
@@ -81,5 +83,6 @@ class Venta {
             [],
         medioPagoId: json['medio_pago_id'] as String?,
         medioPagoNombre: json['medio_pago_nombre'] as String?,
+        jornadaId: json['jornada_id'] as String?,
       );
 }

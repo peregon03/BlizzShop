@@ -5,6 +5,7 @@ class BaseDia {
   final double monto;
   final String? nota;
   final DateTime? creadoEn;
+  final String? jornadaId;
 
   const BaseDia({
     required this.id,
@@ -13,6 +14,7 @@ class BaseDia {
     required this.monto,
     this.nota,
     this.creadoEn,
+    this.jornadaId,
   });
 
   factory BaseDia.fromJson(Map<String, dynamic> json) => BaseDia(
@@ -24,5 +26,6 @@ class BaseDia {
         creadoEn: json['creado_en'] != null
             ? DateTime.parse(json['creado_en'] as String)
             : null,
+        jornadaId: json['jornada_id'] as String?,
       );
 }

@@ -7,9 +7,10 @@ import '../models/producto.dart';
 import 'supabase_provider.dart';
 import 'venta_provider.dart';
 import 'producto_provider.dart';
+import 'base_dia_provider.dart';
+import 'jornada_provider.dart';
 
-final cierresProvider =
-    AsyncNotifierProvider<CierresNotifier, List<CierreDia>>(
+final cierresProvider = AsyncNotifierProvider<CierresNotifier, List<CierreDia>>(
   CierresNotifier.new,
 );
 
@@ -29,8 +30,11 @@ class CierresNotifier extends AsyncNotifier<List<CierreDia>> {
   }
 
   Future<void> confirmarCierre({String? nota}) async {
+    final jornada = await ref.read(jornadaActivaProvider.future);
     final ventasHoy = ref.read(ventasHoyProvider).valueOrNull ?? [];
-    if (ventasHoy.isEmpty) throw Exception('No hay ventas para registrar en el cierre');
+    if (ventasHoy.isEmpty) {
+      throw Exception('No hay ventas para registrar en el cierre');
+    }
 
     final total = ventasHoy.fold<double>(0, (s, v) => s + v.total);
     final costo = ventasHoy.fold<double>(0, (s, v) => s + v.costoTotal);
@@ -40,15 +44,19 @@ class CierresNotifier extends AsyncNotifier<List<CierreDia>> {
     final cierre = CierreDia(
       id: const Uuid().v4(),
       usuarioId: '',
-      fecha: DateTime.now(),
+      fecha: jornada?.fechaApertura.toLocal() ?? DateTime.now(),
       totalVentas: total,
       costoTotal: costo,
       transacciones: ventasHoy.length,
       itemsVendidos: items,
       nota: nota,
+      jornadaId: jornada?.id,
     );
 
     await ref.read(cierreRepositoryProvider).insertar(cierre);
+    await ref.read(jornadaActivaProvider.notifier).cerrar(nota: nota);
+    ref.invalidate(ventasHoyProvider);
+    ref.invalidate(baseDiaProvider);
     await reload();
   }
 

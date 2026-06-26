@@ -7,6 +7,7 @@ import '../models/producto.dart';
 import 'supabase_provider.dart';
 import 'producto_provider.dart';
 import 'medio_pago_provider.dart';
+import 'jornada_provider.dart';
 
 // ── Carrito: Map<productoId, cantidad> ─────────────────────
 final carritoProvider = StateProvider<Map<String, int>>((ref) => {});
@@ -42,8 +43,7 @@ final carritoTotalProvider = Provider<double>((ref) {
 });
 
 // ── Ventas del día ─────────────────────────────────────────
-final ventasHoyProvider =
-    AsyncNotifierProvider<VentasHoyNotifier, List<Venta>>(
+final ventasHoyProvider = AsyncNotifierProvider<VentasHoyNotifier, List<Venta>>(
   VentasHoyNotifier.new,
 );
 
@@ -52,13 +52,19 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
   Future<List<Venta>> build() async {
     ref.watch(authStateChangesProvider);
     if (Supabase.instance.client.auth.currentUser == null) return [];
-    return ref.watch(ventaRepositoryProvider).fetchHoy();
+    final jornada = await ref.watch(jornadaActivaProvider.future);
+    return ref.watch(ventaRepositoryProvider).fetchHoy(
+          jornadaId: jornada?.id,
+        );
   }
 
   Future<void> reload() async {
     state = const AsyncLoading();
+    final jornada = await ref.read(jornadaActivaProvider.future);
     state = await AsyncValue.guard(
-      () => ref.read(ventaRepositoryProvider).fetchHoy(),
+      () => ref.read(ventaRepositoryProvider).fetchHoy(
+            jornadaId: jornada?.id,
+          ),
     );
   }
 
@@ -95,12 +101,14 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
         );
 
     // Insertar venta en BD
+    final jornada = await ref.read(jornadaActivaProvider.future);
     await ref.read(ventaRepositoryProvider).insertar(
           total: total,
           costoTotal: costoTotal,
           items: itemsPayload,
           medioPagoId: medio?.id as String?,
           medioPagoNombre: medio?.nombre as String?,
+          jornadaId: jornada?.id,
         );
 
     // Registrar movimientos de salida y actualizar stock
