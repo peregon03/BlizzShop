@@ -1165,10 +1165,12 @@ class _DividirCuentaModal extends ConsumerStatefulWidget {
 class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
     with SingleTickerProviderStateMixin {
   late final TabController _tabCtrl;
-  final _personasCtrl = TextEditingController(text: '2');
 
-  // Para pago mixto: mapa medioId → TextEditingController
-  final Map<String, TextEditingController> _montosCtrls = {};
+  // Tab 0: Por total
+  int _nPersonas = 2;
+
+  // Tab 1: Por producto — Map<productoId, nPersonas>
+  final Map<String, int> _personasPorProducto = {};
 
   @override
   void initState() {
@@ -1179,260 +1181,338 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   @override
   void dispose() {
     _tabCtrl.dispose();
-    _personasCtrl.dispose();
-    for (final c in _montosCtrls.values) {
-      c.dispose();
-    }
     super.dispose();
   }
 
-  String _fmtMonto(double monto) {
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$');
-    return fmt.format(monto);
-  }
+  String _fmt(double monto) =>
+      NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(monto);
 
-  double get _totalPorPersona {
-    final n = int.tryParse(_personasCtrl.text) ?? 1;
-    if (n <= 0) return widget.total;
-    return widget.total / n;
-  }
-
-  double _sumaMixto(List medios) {
-    double suma = 0;
-    for (final m in medios) {
-      final ctrl = _montosCtrls[m.id];
-      suma += double.tryParse(ctrl?.text ?? '') ?? 0;
-    }
-    return suma;
-  }
-
-  void _confirmarPersonas() {
-    final n = int.tryParse(_personasCtrl.text) ?? 0;
-    if (n <= 0) return;
-    final porPersona = _totalPorPersona;
-    final nota =
-        'Dividido entre $n personas · ${_fmtMonto(porPersona)} c/u';
-    ref.read(notaVentaProvider.notifier).state = nota;
+  void _confirmarPorTotal() {
+    if (_nPersonas <= 0) return;
+    final porPersona = widget.total / _nPersonas;
+    ref.read(notaVentaProvider.notifier).state =
+        'Entre $_nPersonas personas · ${_fmt(porPersona)} c/u';
     Navigator.of(context).pop();
   }
 
-  void _confirmarMixto(List medios) {
+  void _confirmarPorProducto(List<(Producto, int)> items) {
+    if (items.isEmpty) return;
     final partes = <String>[];
-    for (final m in medios) {
-      final monto = double.tryParse(_montosCtrls[m.id]?.text ?? '') ?? 0;
-      if (monto > 0) {
-        partes.add('${m.nombre}: ${_fmtMonto(monto)}');
+    for (final (prod, qty) in items) {
+      final nP = _personasPorProducto[prod.id] ?? 1;
+      final subtotal = prod.precioVenta * qty;
+      if (nP > 1) {
+        partes.add('${prod.nombre} → ${_fmt(subtotal / nP)} c/u (${nP}p)');
+      } else {
+        partes.add('${prod.nombre}: ${_fmt(subtotal)}');
       }
     }
-    if (partes.isEmpty) return;
     ref.read(notaVentaProvider.notifier).state = partes.join(' · ');
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final medios = ref.watch(mediosPagoProvider).valueOrNull ?? [];
+    final items = ref.watch(carritoItemsProvider);
 
-    // Inicializar controladores de montos si no existen
-    for (final m in medios) {
-      _montosCtrls.putIfAbsent(m.id, () => TextEditingController());
+    // Inicializar nPersonas por producto
+    for (final (prod, _) in items) {
+      _personasPorProducto.putIfAbsent(prod.id, () => 1);
     }
 
-    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$');
+    final tabH = MediaQuery.sizeOf(context).height * 0.46;
+    final keyboardH = MediaQuery.viewInsetsOf(context).bottom;
 
-    return StatefulBuilder(builder: (context, setModalState) {
-      final suma = _sumaMixto(medios);
-      final pendiente = widget.total - suma;
-
-      return Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardH),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2)),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Dividir cuenta',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(
-                    'Total: ${fmt.format(widget.total)}',
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-            TabBar(
-              controller: _tabCtrl,
-              tabs: const [
-                Tab(text: 'Por personas'),
-                Tab(text: 'Pago mixto'),
+          ),
+          // Encabezado
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Dividir cuenta',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  'Total: ${_fmt(widget.total)}',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14),
+                ),
               ],
             ),
-            SizedBox(
-              height: 220,
-              child: TabBarView(
-                controller: _tabCtrl,
-                children: [
-                  // Tab 0: Por personas
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Text('Número de personas:',
-                                style: TextStyle(fontSize: 14)),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              width: 60,
-                              child: TextField(
-                                controller: _personasCtrl,
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w600),
-                                decoration: const InputDecoration(
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8)),
-                                onChanged: (_) => setModalState(() {}),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2A2A2A),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                _fmtMonto(_totalPorPersona),
-                                style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color:
-                                        Theme.of(context).colorScheme.primary),
-                              ),
-                              const Text('por persona',
-                                  style: TextStyle(
-                                      color: Colors.white54, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: _confirmarPersonas,
-                          style: FilledButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 44)),
-                          child: const Text('Confirmar división'),
-                        ),
-                      ],
-                    ),
-                  ),
+          ),
+          TabBar(
+            controller: _tabCtrl,
+            tabs: const [
+              Tab(text: 'Por total'),
+              Tab(text: 'Por producto'),
+            ],
+          ),
+          SizedBox(
+            height: tabH,
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _buildTabTotal(context),
+                _buildTabProducto(context, items),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                  // Tab 1: Pago mixto
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                    child: Column(
+  // ── Tab 0: divide el total entre N personas ──────────────
+  Widget _buildTabTotal(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+      child: Column(
+        children: [
+          // Selector +/–
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _StepBtn(
+                icon: Icons.remove,
+                onTap: _nPersonas > 1
+                    ? () => setState(() => _nPersonas--)
+                    : null,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  children: [
+                    Text(
+                      '$_nPersonas',
+                      style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary),
+                    ),
+                    const Text('personas',
+                        style:
+                            TextStyle(color: Colors.white54, fontSize: 13)),
+                  ],
+                ),
+              ),
+              _StepBtn(
+                icon: Icons.add,
+                onTap: () => setState(() => _nPersonas++),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Resultado
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _fmt(widget.total / _nPersonas),
+                  style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary),
+                ),
+                const SizedBox(height: 4),
+                const Text('por persona',
+                    style:
+                        TextStyle(color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+          ),
+          const Spacer(),
+          FilledButton(
+            onPressed: _confirmarPorTotal,
+            style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48)),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Tab 1: divide cada producto entre N personas ─────────
+  Widget _buildTabProducto(BuildContext context, List<(Producto, int)> items) {
+    if (items.isEmpty) {
+      return const Center(
+        child: Text('El carrito está vacío',
+            style: TextStyle(color: Colors.white38)),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            itemCount: items.length,
+            itemBuilder: (context, i) {
+              final (prod, qty) = items[i];
+              final nP = _personasPorProducto[prod.id] ?? 1;
+              final subtotal = prod.precioVenta * qty;
+              final porPersona = subtotal / nP;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  border: Border.all(color: const Color(0xFF2E2E2E)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
                         Expanded(
-                          child: ListView(
-                            children: [
-                              ...medios.map((m) => Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 10),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(m.nombre,
-                                              style: const TextStyle(
-                                                  fontSize: 14)),
-                                        ),
-                                        SizedBox(
-                                          width: 130,
-                                          child: TextField(
-                                            controller: _montosCtrls[m.id],
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                    decimal: true),
-                                            decoration: InputDecoration(
-                                              hintText: '0',
-                                              prefixText: '\$',
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 8),
-                                            ),
-                                            onChanged: (_) =>
-                                                setModalState(() {}),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    pendiente > 0.01
-                                        ? 'Pendiente: ${fmt.format(pendiente)}'
-                                        : pendiente < -0.01
-                                            ? 'Excede: ${fmt.format(-pendiente)}'
-                                            : 'Cubierto',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: pendiente.abs() < 0.01
-                                          ? Colors.greenAccent
-                                          : Colors.amber,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          child: Text(
+                            '${prod.nombre} ×$qty',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        FilledButton(
-                          onPressed: () => _confirmarMixto(medios),
-                          style: FilledButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 44)),
-                          child: const Text('Confirmar'),
+                        Text(
+                          _fmt(subtotal),
+                          style: TextStyle(
+                              color:
+                                  Theme.of(context).colorScheme.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Text('Entre cuántos:',
+                            style: TextStyle(
+                                color: Colors.white54, fontSize: 12)),
+                        const Spacer(),
+                        _StepBtn(
+                          icon: Icons.remove,
+                          onTap: nP > 1
+                              ? () => setState(() =>
+                                  _personasPorProducto[prod.id] = nP - 1)
+                              : null,
+                          small: true,
+                        ),
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            '$nP',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        _StepBtn(
+                          icon: Icons.add,
+                          onTap: () => setState(() =>
+                              _personasPorProducto[prod.id] = nP + 1),
+                          small: true,
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          '${_fmt(porPersona)} c/u',
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
-      );
-    });
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: FilledButton(
+            onPressed: () => _confirmarPorProducto(items),
+            style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48)),
+            child: const Text('Confirmar'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Botón paso (+/–) reutilizable
+// ─────────────────────────────────────────────────────────
+
+class _StepBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool small;
+
+  const _StepBtn({required this.icon, this.onTap, this.small = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = small ? 28.0 : 44.0;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: onTap != null
+              ? const Color(0xFF2E2E2E)
+              : const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(small ? 6 : 10),
+          border: Border.all(
+            color: onTap != null
+                ? Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.4)
+                : Colors.transparent,
+          ),
+        ),
+        child: Icon(icon,
+            size: small ? 14 : 22,
+            color: onTap != null ? Colors.white : Colors.white24),
+      ),
+    );
   }
 }
 
