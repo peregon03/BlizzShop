@@ -13,6 +13,7 @@ import '../../providers/venta_provider.dart';
 import '../../providers/supabase_provider.dart';
 import '../../providers/medio_pago_provider.dart';
 import '../../providers/jornada_provider.dart';
+import '../../providers/mesa_provider.dart';
 import '../../core/theme.dart';
 
 // Tab activo
@@ -196,6 +197,10 @@ class _TabVenderState extends ConsumerState<_TabVender> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        // Selector de mesa
+        const _MesaSelector(),
+        const SizedBox(height: 10),
+
         // Búsqueda
         SearchBar(
           controller: widget.searchCtrl,
@@ -300,13 +305,17 @@ class _TabVenderState extends ConsumerState<_TabVender> {
           ),
           const SizedBox(height: 10),
           const _MedioPagoSelector(),
+          const SizedBox(height: 8),
+          _DividirCuentaRow(total: carritoTotal),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () =>
-                      ref.read(carritoProvider.notifier).state = {},
+                  onPressed: () {
+                    ref.read(carritoProvider.notifier).state = {};
+                    ref.read(notaVentaProvider.notifier).state = null;
+                  },
                   child: const Text('Limpiar'),
                 ),
               ),
@@ -1001,6 +1010,429 @@ class _MedioPagoSelector extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Selector de mesa
+// ─────────────────────────────────────────────────────────
+
+class _MesaSelector extends ConsumerWidget {
+  const _MesaSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mesasAsync = ref.watch(mesasProvider);
+    final mesas = mesasAsync.valueOrNull ?? [];
+    final mesaId = ref.watch(mesaSeleccionadaProvider);
+
+    if (mesas.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Mesa',
+            style: TextStyle(
+                fontSize: 12,
+                color: Colors.white54,
+                fontWeight: FontWeight.w500)),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _CatChip(
+                label: 'Sin mesa',
+                color: null,
+                selected: mesaId == null,
+                onTap: () =>
+                    ref.read(mesaSeleccionadaProvider.notifier).state = null,
+              ),
+              ...mesas.map((m) => _CatChip(
+                    label: m.nombre,
+                    color: Theme.of(context).colorScheme.primary,
+                    selected: mesaId == m.id,
+                    onTap: () => ref
+                        .read(mesaSeleccionadaProvider.notifier)
+                        .state = m.id,
+                  )),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Fila de dividir cuenta
+// ─────────────────────────────────────────────────────────
+
+class _DividirCuentaRow extends ConsumerWidget {
+  final double total;
+  const _DividirCuentaRow({required this.total});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nota = ref.watch(notaVentaProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.people_outline, size: 16, color: Colors.white54),
+            const SizedBox(width: 6),
+            const Text('Cuenta separada',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white54,
+                    fontWeight: FontWeight.w500)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => _DividirCuentaModal(total: total),
+              ),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: nota != null
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.15)
+                      : const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: nota != null
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Text(
+                  nota != null ? 'Editar división' : 'Dividir cuenta',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: nota != null
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white60,
+                    fontWeight: nota != null ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ),
+            if (nota != null) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () =>
+                    ref.read(notaVentaProvider.notifier).state = null,
+                child: const Icon(Icons.close, size: 16, color: Colors.white38),
+              ),
+            ],
+          ],
+        ),
+        if (nota != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            nota,
+            style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Modal para dividir cuenta
+// ─────────────────────────────────────────────────────────
+
+class _DividirCuentaModal extends ConsumerStatefulWidget {
+  final double total;
+  const _DividirCuentaModal({required this.total});
+
+  @override
+  ConsumerState<_DividirCuentaModal> createState() =>
+      _DividirCuentaModalState();
+}
+
+class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabCtrl;
+  final _personasCtrl = TextEditingController(text: '2');
+
+  // Para pago mixto: mapa medioId → TextEditingController
+  final Map<String, TextEditingController> _montosCtrls = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    _personasCtrl.dispose();
+    for (final c in _montosCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String _fmtMonto(double monto) {
+    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$');
+    return fmt.format(monto);
+  }
+
+  double get _totalPorPersona {
+    final n = int.tryParse(_personasCtrl.text) ?? 1;
+    if (n <= 0) return widget.total;
+    return widget.total / n;
+  }
+
+  double _sumaMixto(List medios) {
+    double suma = 0;
+    for (final m in medios) {
+      final ctrl = _montosCtrls[m.id];
+      suma += double.tryParse(ctrl?.text ?? '') ?? 0;
+    }
+    return suma;
+  }
+
+  void _confirmarPersonas() {
+    final n = int.tryParse(_personasCtrl.text) ?? 0;
+    if (n <= 0) return;
+    final porPersona = _totalPorPersona;
+    final nota =
+        'Dividido entre $n personas · ${_fmtMonto(porPersona)} c/u';
+    ref.read(notaVentaProvider.notifier).state = nota;
+    Navigator.of(context).pop();
+  }
+
+  void _confirmarMixto(List medios) {
+    final partes = <String>[];
+    for (final m in medios) {
+      final monto = double.tryParse(_montosCtrls[m.id]?.text ?? '') ?? 0;
+      if (monto > 0) {
+        partes.add('${m.nombre}: ${_fmtMonto(monto)}');
+      }
+    }
+    if (partes.isEmpty) return;
+    ref.read(notaVentaProvider.notifier).state = partes.join(' · ');
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final medios = ref.watch(mediosPagoProvider).valueOrNull ?? [];
+
+    // Inicializar controladores de montos si no existen
+    for (final m in medios) {
+      _montosCtrls.putIfAbsent(m.id, () => TextEditingController());
+    }
+
+    final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$');
+
+    return StatefulBuilder(builder: (context, setModalState) {
+      final suma = _sumaMixto(medios);
+      final pendiente = widget.total - suma;
+
+      return Padding(
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Dividir cuenta',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(
+                    'Total: ${fmt.format(widget.total)}',
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+            TabBar(
+              controller: _tabCtrl,
+              tabs: const [
+                Tab(text: 'Por personas'),
+                Tab(text: 'Pago mixto'),
+              ],
+            ),
+            SizedBox(
+              height: 220,
+              child: TabBarView(
+                controller: _tabCtrl,
+                children: [
+                  // Tab 0: Por personas
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Text('Número de personas:',
+                                style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 60,
+                              child: TextField(
+                                controller: _personasCtrl,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w600),
+                                decoration: const InputDecoration(
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 8)),
+                                onChanged: (_) => setModalState(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A2A2A),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                _fmtMonto(_totalPorPersona),
+                                style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.primary),
+                              ),
+                              const Text('por persona',
+                                  style: TextStyle(
+                                      color: Colors.white54, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: _confirmarPersonas,
+                          style: FilledButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 44)),
+                          child: const Text('Confirmar división'),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Tab 1: Pago mixto
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: ListView(
+                            children: [
+                              ...medios.map((m) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 10),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(m.nombre,
+                                              style: const TextStyle(
+                                                  fontSize: 14)),
+                                        ),
+                                        SizedBox(
+                                          width: 130,
+                                          child: TextField(
+                                            controller: _montosCtrls[m.id],
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                    decimal: true),
+                                            decoration: InputDecoration(
+                                              hintText: '0',
+                                              prefixText: '\$',
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 8),
+                                            ),
+                                            onChanged: (_) =>
+                                                setModalState(() {}),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    pendiente > 0.01
+                                        ? 'Pendiente: ${fmt.format(pendiente)}'
+                                        : pendiente < -0.01
+                                            ? 'Excede: ${fmt.format(-pendiente)}'
+                                            : 'Cubierto',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: pendiente.abs() < 0.01
+                                          ? Colors.greenAccent
+                                          : Colors.amber,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: () => _confirmarMixto(medios),
+                          style: FilledButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 44)),
+                          child: const Text('Confirmar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    });
   }
 }
 

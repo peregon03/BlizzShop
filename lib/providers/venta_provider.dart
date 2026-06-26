@@ -8,6 +8,7 @@ import 'supabase_provider.dart';
 import 'producto_provider.dart';
 import 'medio_pago_provider.dart';
 import 'jornada_provider.dart';
+import 'mesa_provider.dart';
 
 // ── Carrito: Map<productoId, cantidad> ─────────────────────
 final carritoProvider = StateProvider<Map<String, int>>((ref) => {});
@@ -15,6 +16,12 @@ final carritoProvider = StateProvider<Map<String, int>>((ref) => {});
 // ── Medio de pago seleccionado para la próxima venta ───────
 // Stores the MedioPago id. null = ninguno seleccionado todavía.
 final medioPagoSeleccionadoProvider = StateProvider<String?>((ref) => null);
+
+// ── Mesa seleccionada para la próxima venta ────────────────
+final mesaSeleccionadaProvider = StateProvider<String?>((ref) => null);
+
+// ── Nota de pago dividido / cuenta separada ────────────────
+final notaVentaProvider = StateProvider<String?>((ref) => null);
 
 // ── Computed: items del carrito con su Producto ─────────────
 final carritoItemsProvider = Provider<List<(Producto, int)>>((ref) {
@@ -100,6 +107,20 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
           orElse: () => medios.isNotEmpty ? medios.first : null,
         );
 
+    // Mesa seleccionada
+    final mesaId = ref.read(mesaSeleccionadaProvider);
+    String? mesaNombre;
+    if (mesaId != null) {
+      final mesas = ref.read(mesasProvider).valueOrNull ?? [];
+      mesaNombre = mesas.cast<dynamic>().firstWhere(
+            (m) => m.id == mesaId,
+            orElse: () => null,
+          )?.nombre as String?;
+    }
+
+    // Nota de pago dividido
+    final nota = ref.read(notaVentaProvider);
+
     // Insertar venta en BD
     final jornada = await ref.read(jornadaActivaProvider.future);
     await ref.read(ventaRepositoryProvider).insertar(
@@ -109,6 +130,9 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
           medioPagoId: medio?.id as String?,
           medioPagoNombre: medio?.nombre as String?,
           jornadaId: jornada?.id,
+          mesaId: mesaId,
+          mesaNombre: mesaNombre,
+          nota: nota,
         );
 
     // Registrar movimientos de salida y actualizar stock
@@ -127,8 +151,9 @@ class VentasHoyNotifier extends AsyncNotifier<List<Venta>> {
       await prodRepo.updateStock(prod.id, prod.stockActual - qty);
     }
 
-    // Limpiar carrito y recargar datos
+    // Limpiar carrito, nota de división y recargar datos
     ref.read(carritoProvider.notifier).state = {};
+    ref.read(notaVentaProvider.notifier).state = null;
     await reload();
     await ref.read(productosProvider.notifier).reload();
   }

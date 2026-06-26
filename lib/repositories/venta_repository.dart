@@ -51,6 +51,9 @@ class VentaRepository {
     String? medioPagoId,
     String? medioPagoNombre,
     String? jornadaId,
+    String? mesaId,
+    String? mesaNombre,
+    String? nota,
   }) async {
     final payload = {
       'usuario_id': _userId,
@@ -59,6 +62,9 @@ class VentaRepository {
       if (medioPagoId != null) 'medio_pago_id': medioPagoId,
       if (medioPagoNombre != null) 'medio_pago_nombre': medioPagoNombre,
       if (jornadaId != null) 'jornada_id': jornadaId,
+      if (mesaId != null) 'mesa_id': mesaId,
+      if (mesaNombre != null) 'mesa_nombre': mesaNombre,
+      if (nota != null) 'nota': nota,
     };
 
     Map<String, dynamic> ventaData;
@@ -67,7 +73,11 @@ class VentaRepository {
           await _client.from('ventas').insert(payload).select().single();
     } on PostgrestException catch (e) {
       if (!_schemaNoDisponible(e)) rethrow;
+      // Reintentar sin columnas opcionales que pueden no existir aún
       payload.remove('jornada_id');
+      payload.remove('mesa_id');
+      payload.remove('mesa_nombre');
+      payload.remove('nota');
       ventaData =
           await _client.from('ventas').insert(payload).select().single();
     }
@@ -97,6 +107,10 @@ class VentaRepository {
 
   bool _schemaNoDisponible(PostgrestException e) {
     final msg = e.message.toLowerCase();
-    return e.code == '42703' || msg.contains('jornada_id');
+    return e.code == '42703' ||
+        msg.contains('jornada_id') ||
+        msg.contains('mesa_id') ||
+        msg.contains('mesa_nombre') ||
+        msg.contains('nota');
   }
 }
