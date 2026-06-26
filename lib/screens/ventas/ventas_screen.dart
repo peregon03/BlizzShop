@@ -1168,6 +1168,8 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
 
   // Tab 0: Por total
   int _nPersonas = 2;
+  // medioId seleccionado por cada persona (index = persona)
+  List<String?> _mediosPorPersona = [null, null];
 
   // Tab 1: Por producto — Map<productoId, nPersonas>
   final Map<String, int> _personasPorProducto = {};
@@ -1187,11 +1189,35 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   String _fmt(double monto) =>
       NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(monto);
 
-  void _confirmarPorTotal() {
+  void _setPersonas(int n) {
+    setState(() {
+      _nPersonas = n;
+      while (_mediosPorPersona.length < n) {
+        _mediosPorPersona.add(null);
+      }
+      while (_mediosPorPersona.length > n) {
+        _mediosPorPersona.removeLast();
+      }
+    });
+  }
+
+  void _confirmarPorTotal(List medios) {
     if (_nPersonas <= 0) return;
     final porPersona = widget.total / _nPersonas;
-    ref.read(notaVentaProvider.notifier).state =
-        'Entre $_nPersonas personas · ${_fmt(porPersona)} c/u';
+
+    final partes = List.generate(_nPersonas, (i) {
+      final medioId = _mediosPorPersona[i];
+      String? medioNombre;
+      if (medioId != null) {
+        try {
+          medioNombre = medios.firstWhere((m) => m.id == medioId).nombre as String;
+        } catch (_) {}
+      }
+      final monto = _fmt(porPersona);
+      return medioNombre != null ? 'P${i + 1}: $monto ($medioNombre)' : 'P${i + 1}: $monto';
+    });
+
+    ref.read(notaVentaProvider.notifier).state = partes.join(' · ');
     Navigator.of(context).pop();
   }
 
@@ -1214,13 +1240,14 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(carritoItemsProvider);
+    final medios = ref.watch(mediosPagoProvider).valueOrNull ?? [];
 
     // Inicializar nPersonas por producto
     for (final (prod, _) in items) {
       _personasPorProducto.putIfAbsent(prod.id, () => 1);
     }
 
-    final tabH = MediaQuery.sizeOf(context).height * 0.46;
+    final tabH = MediaQuery.sizeOf(context).height * 0.50;
     final keyboardH = MediaQuery.viewInsetsOf(context).bottom;
 
     return Padding(
@@ -1271,7 +1298,7 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
             child: TabBarView(
               controller: _tabCtrl,
               children: [
-                _buildTabTotal(context),
+                _buildTabTotal(context, medios),
                 _buildTabProducto(context, items),
               ],
             ),
@@ -1282,73 +1309,146 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   }
 
   // ── Tab 0: divide el total entre N personas ──────────────
-  Widget _buildTabTotal(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+  Widget _buildTabTotal(BuildContext context, List medios) {
+    final porPersona = widget.total / _nPersonas;
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Selector +/–
+          // ── Selector de cantidad ─────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _StepBtn(
                 icon: Icons.remove,
                 onTap: _nPersonas > 1
-                    ? () => setState(() => _nPersonas--)
+                    ? () => _setPersonas(_nPersonas - 1)
                     : null,
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    Text(
-                      '$_nPersonas',
-                      style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary),
-                    ),
+                    Text('$_nPersonas',
+                        style: TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: primary)),
                     const Text('personas',
                         style:
-                            TextStyle(color: Colors.white54, fontSize: 13)),
+                            TextStyle(color: Colors.white54, fontSize: 12)),
                   ],
                 ),
               ),
               _StepBtn(
                 icon: Icons.add,
-                onTap: () => setState(() => _nPersonas++),
+                onTap: () => _setPersonas(_nPersonas + 1),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          // Resultado
-          Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  _fmt(widget.total / _nPersonas),
-                  style: TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary),
-                ),
-                const SizedBox(height: 4),
-                const Text('por persona',
-                    style:
-                        TextStyle(color: Colors.white54, fontSize: 13)),
-              ],
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              '${_fmt(porPersona)} c/u',
+              style: TextStyle(
+                  color: primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 16),
+
+          // ── Fila por persona ─────────────────────────────
+          ...List.generate(_nPersonas, (i) {
+            final medioId = _mediosPorPersona[i];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                border: Border.all(color: const Color(0xFF2E2E2E)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('Persona ${i + 1}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
+                      const Spacer(),
+                      Text(
+                        _fmt(porPersona),
+                        style: TextStyle(
+                            color: primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  if (medios.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: medios.map<Widget>((m) {
+                          final sel = medioId == m.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: GestureDetector(
+                              onTap: () => setState(() =>
+                                  _mediosPorPersona[i] =
+                                      sel ? null : m.id as String),
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 120),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: sel
+                                      ? primary.withValues(alpha: 0.18)
+                                      : const Color(0xFF2A2A2A),
+                                  borderRadius:
+                                      BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: sel
+                                        ? primary
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                child: Text(
+                                  m.nombre as String,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: sel
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: sel
+                                        ? primary
+                                        : Colors.white60,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 12),
           FilledButton(
-            onPressed: _confirmarPorTotal,
+            onPressed: () => _confirmarPorTotal(medios),
             style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48)),
             child: const Text('Confirmar'),
