@@ -122,9 +122,8 @@ class _StatsHoy {
       total += v.total;
       costo += v.costoTotal;
 
-      // Medio de pago
-      final mediNombre = v.medioPagoNombre ?? 'Sin especificar';
-      porMedio[mediNombre] = (porMedio[mediNombre] ?? 0) + v.total;
+      // Medio de pago — respeta el desglose de pago dividido si existe
+      _acumularMedioPago(porMedio, v);
 
       for (final i in v.items) {
         items += i.cantidad;
@@ -166,6 +165,33 @@ class _StatsHoy {
       topProductos: top.take(5).toList(),
       porMedioPago: porMedio,
     );
+  }
+
+  /// Acumula el monto de la venta en [porMedio] según su método de pago.
+  /// Si la nota contiene un desglose SPLIT (venta con pago dividido), parsea
+  /// cada tramo y lo suma al método correspondiente.
+  static void _acumularMedioPago(Map<String, double> porMedio, Venta v) {
+    final nota = v.nota;
+    if (nota != null && nota.startsWith('SPLIT:')) {
+      final sep = nota.indexOf('|');
+      final splitStr =
+          sep > 6 ? nota.substring(6, sep) : nota.substring(6);
+      for (final kv in splitStr.split(',')) {
+        final eq = kv.indexOf('=');
+        if (eq <= 0) continue;
+        final nombre = kv.substring(0, eq);
+        final monto = double.tryParse(kv.substring(eq + 1)) ?? 0;
+        if (monto <= 0) continue;
+        // "Sin especificar" usa el método principal de la venta como fallback
+        final key = nombre == 'Sin especificar'
+            ? (v.medioPagoNombre ?? 'Sin especificar')
+            : nombre;
+        porMedio[key] = (porMedio[key] ?? 0) + monto;
+      }
+    } else {
+      final nombre = v.medioPagoNombre ?? 'Sin especificar';
+      porMedio[nombre] = (porMedio[nombre] ?? 0) + v.total;
+    }
   }
 }
 

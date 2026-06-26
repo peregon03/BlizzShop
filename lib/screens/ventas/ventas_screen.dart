@@ -1171,8 +1171,9 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   // medioId seleccionado por cada persona (index = persona)
   List<String?> _mediosPorPersona = [null, null];
 
-  // Tab 1: Por producto — Map<productoId, nPersonas>
-  final Map<String, int> _personasPorProducto = {};
+  // Tab 1: Por producto
+  final Map<String, int> _personasPorProducto = {};       // productoId → nPersonas
+  final Map<String, String?> _mediosPorProducto = {};     // productoId → medioId
 
   @override
   void initState() {
@@ -1204,8 +1205,10 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   void _confirmarPorTotal(List medios) {
     if (_nPersonas <= 0) return;
     final porPersona = widget.total / _nPersonas;
+    final breakdown = <String, double>{};
+    final partes = <String>[];
 
-    final partes = List.generate(_nPersonas, (i) {
+    for (int i = 0; i < _nPersonas; i++) {
       final medioId = _mediosPorPersona[i];
       String? medioNombre;
       if (medioId != null) {
@@ -1213,28 +1216,56 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
           medioNombre = medios.firstWhere((m) => m.id == medioId).nombre as String;
         } catch (_) {}
       }
-      final monto = _fmt(porPersona);
-      return medioNombre != null ? 'P${i + 1}: $monto ($medioNombre)' : 'P${i + 1}: $monto';
-    });
+      final key = medioNombre ?? 'Sin especificar';
+      breakdown[key] = (breakdown[key] ?? 0) + porPersona;
+      partes.add(medioNombre != null
+          ? 'P${i + 1}: ${_fmt(porPersona)} ($medioNombre)'
+          : 'P${i + 1}: ${_fmt(porPersona)}');
+    }
 
-    ref.read(notaVentaProvider.notifier).state = partes.join(' · ');
+    ref.read(notaVentaProvider.notifier).state =
+        _buildNotaSplit(breakdown, partes.join(' · '));
     Navigator.of(context).pop();
   }
 
-  void _confirmarPorProducto(List<(Producto, int)> items) {
+  void _confirmarPorProducto(List<(Producto, int)> items, List medios) {
     if (items.isEmpty) return;
+    final breakdown = <String, double>{};
     final partes = <String>[];
+
     for (final (prod, qty) in items) {
       final nP = _personasPorProducto[prod.id] ?? 1;
       final subtotal = prod.precioVenta * qty;
+      final medioId = _mediosPorProducto[prod.id];
+      String? medioNombre;
+      if (medioId != null) {
+        try {
+          medioNombre = medios.firstWhere((m) => m.id == medioId).nombre as String;
+        } catch (_) {}
+      }
+      final key = medioNombre ?? 'Sin especificar';
+      breakdown[key] = (breakdown[key] ?? 0) + subtotal;
+      final sufijo = medioNombre != null ? ' ($medioNombre)' : '';
       if (nP > 1) {
-        partes.add('${prod.nombre} → ${_fmt(subtotal / nP)} c/u (${nP}p)');
+        partes.add('${prod.nombre} → ${_fmt(subtotal / nP)} c/u (${nP}p)$sufijo');
       } else {
-        partes.add('${prod.nombre}: ${_fmt(subtotal)}');
+        partes.add('${prod.nombre}: ${_fmt(subtotal)}$sufijo');
       }
     }
-    ref.read(notaVentaProvider.notifier).state = partes.join(' · ');
+
+    ref.read(notaVentaProvider.notifier).state =
+        _buildNotaSplit(breakdown, partes.join(' · '));
     Navigator.of(context).pop();
+  }
+
+  /// Codifica el desglose de pagos al inicio de la nota para que el cierre
+  /// pueda leerlo. Formato: SPLIT:Efectivo=30000.00,Transferencia=50000.00|desc
+  String _buildNotaSplit(Map<String, double> breakdown, String descripcion) {
+    if (breakdown.isEmpty) return descripcion;
+    final splitStr = breakdown.entries
+        .map((e) => '${e.key}=${e.value.toStringAsFixed(2)}')
+        .join(',');
+    return 'SPLIT:$splitStr|$descripcion';
   }
 
   @override
@@ -1242,9 +1273,10 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
     final items = ref.watch(carritoItemsProvider);
     final medios = ref.watch(mediosPagoProvider).valueOrNull ?? [];
 
-    // Inicializar nPersonas por producto
+    // Inicializar estado por producto
     for (final (prod, _) in items) {
       _personasPorProducto.putIfAbsent(prod.id, () => 1);
+      _mediosPorProducto.putIfAbsent(prod.id, () => null);
     }
 
     final tabH = MediaQuery.sizeOf(context).height * 0.50;
@@ -1299,7 +1331,7 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
               controller: _tabCtrl,
               children: [
                 _buildTabTotal(context, medios),
-                _buildTabProducto(context, items),
+                _buildTabProducto(context, items, medios),
               ],
             ),
           ),
@@ -1459,13 +1491,16 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
   }
 
   // ── Tab 1: divide cada producto entre N personas ─────────
-  Widget _buildTabProducto(BuildContext context, List<(Producto, int)> items) {
+  Widget _buildTabProducto(
+      BuildContext context, List<(Producto, int)> items, List medios) {
     if (items.isEmpty) {
       return const Center(
         child: Text('El carrito está vacío',
             style: TextStyle(color: Colors.white38)),
       );
     }
+
+    final primary = Theme.of(context).colorScheme.primary;
 
     return Column(
       children: [
@@ -1478,6 +1513,7 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
               final nP = _personasPorProducto[prod.id] ?? 1;
               final subtotal = prod.precioVenta * qty;
               final porPersona = subtotal / nP;
+              final medioId = _mediosPorProducto[prod.id];
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -1491,6 +1527,7 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── Nombre y subtotal ─────────────────
                     Row(
                       children: [
                         Expanded(
@@ -1504,14 +1541,15 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
                         Text(
                           _fmt(subtotal),
                           style: TextStyle(
-                              color:
-                                  Theme.of(context).colorScheme.primary,
+                              color: primary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // ── Selector de personas ──────────────
                     Row(
                       children: [
                         const Text('Entre cuántos:',
@@ -1529,12 +1567,10 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
                         Padding(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            '$nP',
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold),
-                          ),
+                          child: Text('$nP',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold)),
                         ),
                         _StepBtn(
                           icon: Icons.add,
@@ -1542,19 +1578,67 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
                               _personasPorProducto[prod.id] = nP + 1),
                           small: true,
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 10),
                         Text(
                           '${_fmt(porPersona)} c/u',
                           style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.9),
+                              color: primary.withValues(alpha: 0.9),
                               fontSize: 12,
                               fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
+
+                    // ── Método de pago por producto ───────
+                    if (medios.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: medios.map<Widget>((m) {
+                            final sel = medioId == m.id;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: GestureDetector(
+                                onTap: () => setState(() =>
+                                    _mediosPorProducto[prod.id] =
+                                        sel ? null : m.id as String),
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 120),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? primary.withValues(alpha: 0.18)
+                                        : const Color(0xFF2A2A2A),
+                                    borderRadius:
+                                        BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: sel
+                                          ? primary
+                                          : Colors.transparent,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    m.nombre as String,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: sel
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: sel
+                                          ? primary
+                                          : Colors.white60,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -1564,7 +1648,7 @@ class _DividirCuentaModalState extends ConsumerState<_DividirCuentaModal>
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           child: FilledButton(
-            onPressed: () => _confirmarPorProducto(items),
+            onPressed: () => _confirmarPorProducto(items, medios),
             style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48)),
             child: const Text('Confirmar'),
